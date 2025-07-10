@@ -37,6 +37,7 @@ def activate_logging(level):
 
 
 def add_arguments(parser):
+    parser.add_argument('--max-concurrent-jobs', type=str, help='Maximum number of concurrent jobs to run')
     parser.add_argument('--max-ram', type=str, help='Maximum amount of RAM to use, e.g 1048576, 512Mi or 2G. Follows k8s resource conventions')
     parser.add_argument('--max-cores', type=str, help='Maximum number of CPU cores to use')
     parser.add_argument('--max-gpus', type=str, nargs='?', help='Maximum number of GPU cores to use')
@@ -133,7 +134,9 @@ def main():
     max_ram_megabytes = MemoryParser.parse_to_megabytes(parsed_args.max_ram)
     max_cores = CPUParser.parse(parsed_args.max_cores)
     max_gpus = int(parsed_args.max_gpus) if parsed_args.max_gpus else 0
-    executor = ThreadPoolJobExecutor(max_ram_megabytes, max_cores, max_gpus)
+    max_concurrent_jobs = int(parsed_args.max_concurrent_jobs) if parsed_args.max_concurrent_jobs else None
+    log.debug(f"Parsed arguments: {vars(parsed_args)}")
+    executor = ThreadPoolJobExecutor(max_ram_megabytes, max_cores, max_gpus, max_concurrent_jobs=max_concurrent_jobs)
     initialize_reporter(max_ram_megabytes, max_cores)
     runtime_context = CalrissianRuntimeContext(vars(parsed_args))
     runtime_context.select_resources = executor.select_resources

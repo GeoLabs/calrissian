@@ -7,7 +7,6 @@ from cwltool.errors import WorkflowException
 from cwltool.executors import JobExecutor
 from schema_salad.validate import ValidationException
 
-
 class DuplicateJobException(Exception):
     pass
 
@@ -169,18 +168,23 @@ class ThreadPoolJobExecutor(JobExecutor):
     Relevant: https://github.com/common-workflow-language/cwltool/issues/888
     """
 
-    def __init__(self, total_ram, total_cores, total_gpus=0, max_workers=None):
+    def __init__(self, total_ram, total_cores, total_gpus=0, max_workers=None, max_concurrent_jobs=None):
         """
         Initialize a ThreadPoolJobExecutor
         :param total_ram: RAM limit in megabytes for concurrent jobs
         :param total_cores: cpu core count limit for concurrent jobs
+        :param total_gpus: gpu count limit for concurrent jobs
         :param max_workers: Number of worker threads to create. Set to None to use Python's default of 5xcpu count, which
         should be sufficient. Setting max_workers too low can cause deadlocks.
+        :param max_concurrent_jobs: Maximum number of jobs that can run concurrently. If None, only limited by resources.
 
         See https://docs.python.org/3/library/concurrent.futures.html#concurrent.futures.ThreadPoolExecutor
         """
         super(ThreadPoolJobExecutor, self).__init__()
         self.max_workers = max_workers
+        self.max_concurrent_jobs = max_concurrent_jobs
+        self.current_running_jobs = 0
+        self.jobs_lock = threading.Lock()  # Lock for tracking running jobs count
         self.jrq = JobResourceQueue()
         self.exceptions = Queue()
         self.total_resources = Resources(total_ram, total_cores, total_gpus)
@@ -220,9 +224,13 @@ class ThreadPoolJobExecutor(JobExecutor):
         :param future: A concurrent.futures.Future representing the finished task. May be in cancelled or done states
         """
 
-        # Always restore the resources.
+        # Always restore the resources and decrement running jobs count.
         try:
             self.restore(rsc, logger)
+            # Decrement the running jobs counter
+            with self.jobs_lock:
+                self.current_running_jobs -= 1
+                logger.debug('Job completed. Current running jobs: {}'.format(self.current_running_jobs))
         except Exception as ex:
             self.exceptions.put(ex)
 
@@ -310,19 +318,59 @@ class ThreadPoolJobExecutor(JobExecutor):
         logger.debug('restore {} to available {}'.format(rsc, self.available_resources))
         self._account(rsc)
 
+    def can_start_more_jobs(self):
+        """
+        Check if we can start more jobs based on the max_concurrent_jobs limit
+        :return: True if we can start more jobs, False otherwise
+        """
+        if self.max_concurrent_jobs is None:
+            return True
+        with self.jobs_lock:
+            return self.current_running_jobs < self.max_concurrent_jobs
+
     def start_queued_jobs(self, pool_executor, logger, runtime_context):
         """
         Pulls jobs off the queue in groups that fit in currently available resources, allocates resources, and submits
         jobs to the pool_executor as Futures. Attaches a callback to each future to clean up (e.g. check
-        for execptions, restore allocated resources)
+        for execptions, restore allocated resources). Now also respects max_concurrent_jobs limit.
         :param pool_executor: concurrent.futures.Executor: where job callables shall be submitted
         :param logger: logger where messages shall be logged
         :param runtime_context: cwltool RuntimeContext: to provide to the job
         :return: set: futures that were submitted on this invocation
         """
-        runnable_jobs = self.jrq.dequeue(self.available_resources)  # Removes jobs from the queue
+        # Get candidates that fit resource-wise but don't remove them yet
+        candidate_jobs = {}
+        for job, resource in self.jrq.sorted_jobs():
+            if self.available_resources - resource >= Resources.EMPTY:
+                candidate_jobs[job] = resource
+                self.available_resources = self.available_resources - resource
+            else:
+                break
+
+        # Reset available resources for actual allocation
+        for job, rsc in candidate_jobs.items():
+            self.available_resources = self.available_resources + rsc
+
+        # Filter jobs based on concurrent jobs limit and actually remove from queue
+        jobs_to_submit = {}
+        jobs_to_remove = []
+
+        for job, rsc in candidate_jobs.items():
+            if self.can_start_more_jobs():
+                jobs_to_submit[job] = rsc
+                jobs_to_remove.append(job)
+                with self.jobs_lock:
+                    self.current_running_jobs += 1
+            else:
+                # Stop processing more jobs if we hit the concurrency limit
+                break
+
+        # Remove only the jobs we're actually going to submit
+        for job in jobs_to_remove:
+            self.jrq.jobs.pop(job, None)
+
         submitted_futures = set()
-        for job, rsc in runnable_jobs.items():
+        for job, rsc in jobs_to_submit.items():
             if runtime_context.builder is not None:
                 job.builder = runtime_context.builder
             if job.outdir is not None:
@@ -334,6 +382,13 @@ class ThreadPoolJobExecutor(JobExecutor):
             # clarification is mostly for process pool executors)
             future.add_done_callback(callback)
             submitted_futures.add(future)
+            logger.debug('Started job. Current running jobs: {}/{}'.format(self.current_running_jobs, self.max_concurrent_jobs))
+
+        # Log how many jobs are still waiting
+        if len(candidate_jobs) > len(jobs_to_submit):
+            logger.debug('Jobs waiting due to concurrency limit: {}/{} jobs submitted, {} jobs remaining in queue'.format(
+                len(jobs_to_submit), len(candidate_jobs), len(self.jrq.jobs)))
+
         return submitted_futures
 
     def wait_for_completion(self, futures, logger):
@@ -400,12 +455,24 @@ class ThreadPoolJobExecutor(JobExecutor):
                 # Taking the lock to work the queue
                 submitted = self.start_queued_jobs(pool_executor, logger, runtime_context)  # submits jobs as futures
                 futures.update(submitted)
-            # wait_for_completion must not have the lock, since jobs finishing will acquire it to provide their result
-            futures = self.wait_for_completion(futures, logger)
-            self.raise_if_exception_queued(futures, logger)
+
+            # If we have jobs running or queued, wait for completion
+            if futures:
+                # wait_for_completion must not have the lock, since jobs finishing will acquire it to provide their result
+                futures = self.wait_for_completion(futures, logger)
+                self.raise_if_exception_queued(futures, logger)
+
             with runtime_context.workflow_eval_lock:
                 # Check if we're done with pending jobs and submitted jobs
+                # Also check if we have jobs that could be started but are blocked by concurrency limit
+                can_start_more = self.can_start_more_jobs() and not self.jrq.is_empty()
                 if not futures and self.jrq.is_empty():
+                    finished = True
+                elif not futures and not can_start_more:
+                    # No futures running and can't start more due to concurrency limit
+                    # This shouldn't happen in normal operation
+                    logger.warning('No jobs running but {} jobs queued and max_concurrent_jobs={}'.format(
+                        len(self.jrq.jobs), self.max_concurrent_jobs))
                     finished = True
 
     def run_jobs(self, process, job_order_object, logger, runtime_context):
@@ -414,7 +481,7 @@ class ThreadPoolJobExecutor(JobExecutor):
         :param process: cwltool.process.Process: The process object on which to call .job() yielding jobs
         :param job_order_object: dict: The CWL job order
         :param logger: logger where messages shall be logged
-        :param runtime_context: cwltool RuntimeContext: to provide to the job
+        :param runtime_context: cwltool.RuntimeContext: to provide to the job
         :return: None
         """
         logger.debug('Starting ThreadPoolJobExecutor.run_jobs: total_resources={}, max_workers={}'.format(
