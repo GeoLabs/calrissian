@@ -2,6 +2,11 @@ from calrissian.retry import retry_exponential_if_exception_type
 from unittest import TestCase
 from unittest.mock import Mock, patch
 
+class FakeApiException(Exception):
+    def __init__(self, status, reason=""):
+        super().__init__(reason or f"HTTP {status}")
+        self.status = status
+        self.reason = reason or f"HTTP {status}"
 
 class RetryTestCase(TestCase):
     def setUp(self):
@@ -70,3 +75,54 @@ class RetryTestCase(TestCase):
             func()
 
         self.assertEqual(self.mock.call_count, 1)
+
+
+    @patch("calrissian.retry.RetryParameters")
+    def test_no_retry_on_4xx_immediate_raise(self, mock_retry_parameters):
+        """403 should NOT retry; call count stays 1."""
+        self.setup_mock_retry_parameters(mock_retry_parameters)
+        self.mock.side_effect = FakeApiException(403, "Forbidden")
+
+        @retry_exponential_if_exception_type(FakeApiException, self.logger)
+        def wrapped():
+            return self.mock()
+
+        with self.assertRaisesRegex(FakeApiException, "Forbidden"):
+            wrapped()
+
+        self.assertEqual(self.mock.call_count, 1)  # no retries
+
+
+    @patch("calrissian.retry.RetryParameters")
+    def test_retry_on_5xx_then_give_up(self, mock_retry_parameters):
+        """500 should retry up to ATTEMPTS and then raise."""
+        self.setup_mock_retry_parameters(mock_retry_parameters)
+        self.mock.side_effect = FakeApiException(500, "Internal Error")
+
+        @retry_exponential_if_exception_type(FakeApiException, self.logger)
+        def wrapped():
+            return self.mock()
+
+        with self.assertRaisesRegex(FakeApiException, "Internal Error"):
+            wrapped()
+
+        self.assertEqual(self.mock.call_count, mock_retry_parameters.ATTEMPTS)
+
+
+    @patch("calrissian.retry.RetryParameters")
+    def test_retry_on_5xx_eventually_succeeds(self, mock_retry_parameters):
+        """Fail twice with 500, succeed on third call."""
+        self.setup_mock_retry_parameters(mock_retry_parameters)
+        self.mock.side_effect = [
+            FakeApiException(500, "Internal Error"),
+            FakeApiException(500, "Internal Error"),
+            "ok",
+        ]
+
+        @retry_exponential_if_exception_type(FakeApiException, self.logger)
+        def wrapped():
+            return self.mock()
+
+        result = wrapped()
+        self.assertEqual(result, "ok")
+        self.assertEqual(self.mock.call_count, 3)
