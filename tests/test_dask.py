@@ -340,11 +340,11 @@ class CalrissianCommandLineDaskJobTestCase(TestCase):
             {'workflow_eval_lock': threading.Lock(),
              'dask_gateway_url': 'dask_gateway_url'})
 
-
+    @patch('calrissian.k8s.load_config_get_namespace', return_value='default')
     @patch('calrissian.k8s.KubernetesClient.get_current_pod', return_value=Mock())
     # Since the mock_client is the KubernetesDaskClient, that extends KubernetesClient,
     # I need to mock also the get_current_pod from the superclass
-    def make_job(self, mock_pod):
+    def make_job(self, mock_pod, mock_ns):
 
         job = CalrissianCommandLineDaskJob(
             self.builder,
@@ -384,7 +384,7 @@ class CalrissianCommandLineDaskJobTestCase(TestCase):
         self.assertRegex(job.dask_cm_claim_name, r'^dask-cm-[a-zA-Z0-9]{8}$')
 
     
-    def test__add_configmap_volume_and_binding(self, mock_volume_builder, mock_client):
+    def test_add_configmap_volume_and_binding(self, mock_volume_builder, mock_client):
         job = self.make_job()
         job._add_configmap_volume_and_binding(
             job.dask_cm_name, job.dask_cm_claim_name, job.daskGateway_config_dir
