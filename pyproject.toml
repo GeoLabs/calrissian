@@ -32,7 +32,7 @@ classifiers = [
 dependencies = [
   "urllib3==1.26.18",
   "kubernetes==28.1.0",
-  "cwltool==3.1.20240708091337",
+  "cwltool @ git+https://github.com/common-workflow-language/cwltool",
   "tenacity==8.2.3",
   "importlib-metadata==6.8.0",
   "msgpack>=1.0.7",
@@ -83,7 +83,7 @@ skip-install = false
 dependencies = [
   "urllib3==1.26.18",
   "kubernetes==28.1.0",
-  "cwltool==3.1.20240708091337",
+  "cwltool @ git+https://github.com/common-workflow-language/cwltool",
   "tenacity==8.2.3",
   "importlib-metadata==6.8.0",
   "msgpack>=1.0.7",
@@ -97,6 +97,8 @@ dependencies = [
 [tool.hatch.envs.prod]
 path = "/app/envs/calrissian"
 
+[tool.hatch.metadata]
+allow-direct-references = true
 
 
 [project.scripts]
