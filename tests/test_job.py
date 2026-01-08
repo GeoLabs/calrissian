@@ -457,7 +457,7 @@ class KubernetesPodBuilderTestCase(TestCase):
 
     def test_not_gpu_req_nodeselectors(self):
         self.pod_builder.gpu_nodeselectors = {'gpu': "true"}
-        self.assertNotEqual(self.pod_builder.check_pod_nodeselectors(), {'gpu': "true"})
+        self.assertEqual(self.pod_builder.check_pod_nodeselectors(), {'disktype': 'ssd', 'cachelevel': '2'})
     
     def test_gpu_nodeselectors(self):
         self.pod_builder.requirements = [OrderedDict([("class", "cwltool:CUDARequirement"), ("cudaVersionMin", '10.0'), ("cudaComputeCapability", '3.0'), ("cudaDeviceCountMin", 2), ("cudaDeviceCountMax", 4)])]
