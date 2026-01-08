@@ -593,13 +593,18 @@ class CalrissianCommandLineJob(ContainerCommandLineJob):
 
 
     def get_security_context(self, runtimeContext):
+        sc = {}
+
         if not runtimeContext.no_match_user:
-            return {
+            sc.update({
                 'runAsUser': os.getuid(),
                 'runAsGroup': os.getgid()
-            }
-        else:
-            return {}
+            })
+
+        sc["readOnlyRootFilesystem"] = not runtimeContext.no_read_only
+        sc["privileged"] = False
+        sc["allowPrivilegeEscalation"] = False
+        return sc
 
     def get_pod_env_vars(self, runtimeContext):
         if runtimeContext.pod_env_vars:
