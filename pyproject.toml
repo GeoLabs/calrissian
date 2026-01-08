@@ -32,7 +32,7 @@ classifiers = [
 dependencies = [
   "urllib3==2.6.3",
   "kubernetes>=33.1.0",
-  "cwltool @ git+https://github.com/common-workflow-language/cwltool",
+  "cwltool>=3.1.20260108082145",
   "tenacity==8.2.3",
   "importlib-metadata==6.8.0",
   "msgpack>=1.0.7",
@@ -83,7 +83,7 @@ skip-install = false
 dependencies = [
   "urllib3==2.6.3",
   "kubernetes>=33.1.0",
-  "cwltool @ git+https://github.com/common-workflow-language/cwltool",
+  "cwltool>=3.1.20260108082145",
   "tenacity==8.2.3",
   "importlib-metadata==6.8.0",
   "msgpack>=1.0.7",
@@ -112,7 +112,7 @@ dependencies = [
   "coverage",
   "urllib3==2.6.3",
   "kubernetes>=33.1.0",
-  "cwltool @ git+https://github.com/common-workflow-language/cwltool",
+  "cwltool>=3.1.20260108082145",
   "tenacity==8.2.3",
   "importlib-metadata==6.8.0",
   "msgpack>=1.0.7",
