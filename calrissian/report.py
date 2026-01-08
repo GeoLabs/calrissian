@@ -115,12 +115,12 @@ class TimedResourceReport(TimedReport):
     duration of the timed report. These values, by convention, are the kubernetes **requested**
     resources (not limits or actual).
     """
-    def __init__(self, cpus=0, ram_megabytes=0, disk_megabytes=0, exit_code=0, node_selectors={},*args, **kwargs):
+    def __init__(self, cpus=0, ram_megabytes=0, disk_megabytes=0, exit_code=0, node_selectors=None, *args, **kwargs):
         self.cpus = cpus
         self.ram_megabytes = ram_megabytes
         self.disk_megabytes = disk_megabytes
         self.exit_code = exit_code
-        self.node_selectors = node_selectors
+        self.node_selectors = node_selectors if node_selectors is not None else {}
         super(TimedResourceReport, self).__init__(*args, **kwargs)
 
     def ram_megabyte_hours(self):
