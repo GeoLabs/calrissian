@@ -510,7 +510,7 @@ class KubernetesDaskClient(KubernetesClient):
             self.core_api_instance.delete_namespaced_config_map(namespace=self.namespace, name=cm_name)
         except ApiException as e:
             if e.status == 404:
-                # pod was not found - already deleted, so do not retry
+                # configmap was not found - already deleted, so do not retry
                 pass
             else:
                 # Re-raise
