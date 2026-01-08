@@ -5,8 +5,14 @@ from dask_gateway import Gateway
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
-source = os.environ.get("DASK_CLUSTER_NAME_PATH", None)
-gateway_url = os.environ.get("DASK_GATEWAY_URL", None)
+def require_env(name: str) -> str:
+    value = os.environ.get(name)
+    if value is None or value == "":
+        raise RuntimeError(f"Required environment variable '{name}' is not set")
+    return value
+
+source = require_env("DASK_CLUSTER_NAME_PATH")
+gateway_url = require_env("DASK_GATEWAY_URL")
 signal = "/shared/completed"
 
 logger.info(f"Sidecar: Waiting for completion signal ({signal}) from main container...")

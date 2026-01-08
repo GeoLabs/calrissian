@@ -372,19 +372,27 @@ class KubernetesDaskClient(KubernetesClient):
 
 
     @retry_exponential_if_exception_type((ApiException, HTTPError,), log)
-    def follow_logs(self, status):
+    def follow_logs(self, status=None):
         pod_name = self.pod.metadata.name
 
         log.info('[{}] follow_logs start'.format(pod_name))
-        for line in self.core_api_instance.read_namespaced_pod_log(self.pod.metadata.name, self.namespace, follow=True,
-                                                                   _preload_content=False, container=status.name).stream():
+
+        kwargs = {
+            "follow": True,
+            "_preload_content": False,
+        }
+        if status is not None:
+            kwargs["container"] = status.name
+
+        for line in self.core_api_instance.read_namespaced_pod_log(self.pod.metadata.name, self.namespace, **kwargs).stream():
             # .stream() is only available if _preload_content=False
             # .stream() returns a generator, each iteration yields bytes.
             # kubernetes-client decodes them as utf-8 when _preload_content is True
             # https://github.com/kubernetes-client/python/blob/fcda6fe96beb21cd05522c17f7f08c5a7c0e3dc3/kubernetes/client/rest.py#L215-L216
             # So we do the same here
-            if not status.state.running:
+            if status is not None and not status.state.running:
                 break
+
             line = line.decode('utf-8', errors="ignore").rstrip()
             log.debug('[{}] {}'.format(pod_name, line))
             self.tool_log.append(self.format_log_entry(pod_name, line))
@@ -393,7 +401,7 @@ class KubernetesDaskClient(KubernetesClient):
 
 
     @retry_exponential_if_exception_type((ApiException, HTTPError, IncompleteStatusException), log)
-    def wait_for_completion(self, cm_name: str) -> CompletionResult:
+    def wait_for_completion(self, cm_name: str=None) -> CompletionResult:
         w = watch.Watch()
         for event in w.stream(self.core_api_instance.list_namespaced_pod, self.namespace, field_selector=self._get_pod_field_selector()):
             pod = event['object']
