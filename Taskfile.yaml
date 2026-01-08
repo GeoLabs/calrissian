@@ -12,3 +12,8 @@ tasks:
       vars:
         SCHEMA: './schemas/usage.yaml'
         INSTANCE: './examples/usage.json'
+
+  test: 
+    desc: Run all tests
+    cmds:
+    - hatch run test:test

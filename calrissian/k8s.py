@@ -270,7 +270,7 @@ class KubernetesClient(object):
         """
         pod_name = os.environ.get(POD_NAME_ENV_VARIABLE)
         if not pod_name:
-            raise CalrissianJobException("Missing required environment variable ${}".format(POD_NAME_ENV_VARIABLE))
+            raise CalrissianJobException("Missing required environment variable {}".format(POD_NAME_ENV_VARIABLE))
         return self.get_pod_for_name(pod_name)
 
 

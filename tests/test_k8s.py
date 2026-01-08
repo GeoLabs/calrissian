@@ -224,7 +224,7 @@ class KubernetesClientTestCase(TestCase):
     def test_get_current_pod_missing_env_var(self, mock_os, mock_get_namespace, mock_client):
         mock_os.environ = {}
         kc = KubernetesClient()
-        with self.assertRaisesRegex(CalrissianJobException, 'Missing required environment variable \$CALRISSIAN_POD_NAME'):
+        with self.assertRaisesRegex(CalrissianJobException, 'Missing required environment variable CALRISSIAN_POD_NAME'):
             kc.get_current_pod()
 
     @patch('calrissian.k8s.os')

@@ -7,7 +7,7 @@ name = "calrissian"
 dynamic = ["version"]
 description = 'CWL runner for Kubernetes'
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 license = "MIT"
 keywords = []
 authors = [
@@ -21,17 +21,17 @@ classifiers = [
   "Environment :: Console",
   "Intended Audience :: Developers",
   "Programming Language :: Python",
-  "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-  "urllib3==1.26.18",
-  "kubernetes==28.1.0",
+  "urllib3==2.6.3",
+  "kubernetes>=33.1.0",
   "cwltool @ git+https://github.com/common-workflow-language/cwltool",
   "tenacity==8.2.3",
   "importlib-metadata==6.8.0",
@@ -81,8 +81,8 @@ exclude_lines = [
 [tool.hatch.envs.default]
 skip-install = false
 dependencies = [
-  "urllib3==1.26.18",
-  "kubernetes==28.1.0",
+  "urllib3==2.6.3",
+  "kubernetes>=33.1.0",
   "cwltool @ git+https://github.com/common-workflow-language/cwltool",
   "tenacity==8.2.3",
   "importlib-metadata==6.8.0",
@@ -110,9 +110,9 @@ skip-install = false
 dependencies = [
   "nose2", 
   "coverage",
-  "urllib3==1.26.18",
-  "kubernetes==28.1.0",
-  "cwltool==3.1.20240708091337",
+  "urllib3==2.6.3",
+  "kubernetes>=33.1.0",
+  "cwltool @ git+https://github.com/common-workflow-language/cwltool",
   "tenacity==8.2.3",
   "importlib-metadata==6.8.0",
   "msgpack>=1.0.7",
@@ -134,7 +134,7 @@ testdask = "hatch run nose2 tests.test_dask"
 cov = ["coverage run --source=calrissian -m nose2", "coverage report"]
 
 [[tool.hatch.envs.test.matrix]]
-python = ["3.9", "3.10", "3.11", "3.12", "3.13"]
+python = ["3.10", "3.11", "3.12", "3.13", "3.14"]
 
 [tool.hatch.envs.docs]
 skip-install = false
