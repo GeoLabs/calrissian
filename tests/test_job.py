@@ -908,17 +908,29 @@ class CalrissianCommandLineJobTestCase(TestCase):
         self.assertEqual(expected_calls, manager.mock_calls)
 
     def test_get_security_context(self, mock_volume_builder, mock_client):
-        mock_runtime_context = Mock(no_match_user=False)
-        expected_security_context = { 'runAsUser': os.getuid(), 'runAsGroup': os.getgid() }
+        mock_runtime_context = Mock(no_match_user=False, no_read_only=False)
+        expected_security_context = {
+            'readOnlyRootFilesystem': True,
+            'privileged': False,
+            'allowPrivilegeEscalation': False,
+            'runAsUser': os.getuid(),
+            'runAsGroup': os.getgid()
+        }
         job = self.make_job()
         security_context = job.get_security_context(mock_runtime_context)
         self.assertEqual(security_context, expected_security_context)
     
-    def test_get_security_context_empty(self, mock_volume_builder, mock_client):
-        mock_runtime_context = Mock(no_match_user=True)
+    def test_get_security_context_no_match_user(self, mock_volume_builder, mock_client):
+        mock_runtime_context = Mock(no_match_user=True, no_read_only=False)
         job = self.make_job()
         security_context = job.get_security_context(mock_runtime_context)
-        self.assertEqual(security_context, {})
+        self.assertEqual(security_context, {'readOnlyRootFilesystem': True, 'privileged': False, 'allowPrivilegeEscalation': False})
+
+    def test_get_security_context_no_read_only(self, mock_volume_builder, mock_client):
+        mock_runtime_context = Mock(no_match_user=True, no_read_only=True)
+        job = self.make_job()
+        security_context = job.get_security_context(mock_runtime_context)
+        self.assertEqual(security_context, {'readOnlyRootFilesystem': False, 'privileged': False, 'allowPrivilegeEscalation': False})
 
     @patch('calrissian.job.read_yaml')
     def test_get_pod_labels(self, mock_read_yaml, mock_volume_builder, mock_client):
