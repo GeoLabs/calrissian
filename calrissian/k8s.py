@@ -1,14 +1,13 @@
+import threading
+import logging
+import os
 from typing import List, Union
 from kubernetes import client, config, watch
 from kubernetes.client.models import V1ContainerState, V1Container, V1ContainerStatus
 from kubernetes.client.rest import ApiException
 from kubernetes.config.config_exception import ConfigException
-import yaml
 from calrissian.executor import IncompleteStatusException
 from calrissian.retry import retry_exponential_if_exception_type
-import threading
-import logging
-import os
 from urllib3.exceptions import HTTPError
 from datetime import datetime
 

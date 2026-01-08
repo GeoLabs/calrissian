@@ -17,3 +17,8 @@ tasks:
     desc: Run all tests
     cmds:
     - hatch run test:test
+
+  test-dask:
+    desc: Run all dask tests
+    cmds:
+    - hatch run test:testdask

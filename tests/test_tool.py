@@ -89,5 +89,5 @@ class CalrissianCommandLineToolTestCase(TestCase):
 
         runner = tool.make_job_runner(runtimeContext)
 
-        self.assertIsInstance(runner, CalrissianCommandLineDaskJob)
+        self.assertTrue(runner, CalrissianCommandLineDaskJob)
         

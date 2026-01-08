@@ -3,12 +3,11 @@ import os
 import threading
 from unittest import TestCase
 from unittest.mock import PropertyMock, create_autospec, patch, call, Mock, mock_open
-import logging
 
 from cwltool.utils import CWLObjectType
 from calrissian.context import CalrissianRuntimeContext
 from calrissian.executor import IncompleteStatusException
-from calrissian.job import INIT_IMAGE_ENV_VARIABLE, DEFAULT_INIT_IMAGE
+from calrissian.job import DEFAULT_INIT_IMAGE
 from calrissian.dask import (
     CalrissianCommandLineDaskJob,
     KubernetesDaskPodBuilder,
@@ -385,7 +384,7 @@ class CalrissianCommandLineDaskJobTestCase(TestCase):
     def test_add_configmap_volume_and_binding(self, mock_volume_builder, mock_client):
         job = self.make_job()
         job._add_configmap_volume_and_binding(
-            job.dask_cm_name, job.dask_cm_claim_name, job.daskGateway_config_dir
+            job.dask_cm_name, job.dask_cm_claim_name, job.dask_gateway_config_dir
         )
         self.assertTrue(mock_volume_builder.return_value.add_configmap_volume.called)
         self.assertTrue(mock_volume_builder.return_value.add_configmap_volume_binding.called)

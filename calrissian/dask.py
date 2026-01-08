@@ -1,14 +1,12 @@
 import os
 import logging
-import shlex
-import shutil
-from typing import List, Optional, Union
 import yaml
 
-from kubernetes import client, config, watch
+from typing import List, Optional, Union
+
+from kubernetes import client, watch
 from kubernetes.client.rest import ApiException
-from kubernetes.client.models import V1ContainerState, V1Container, V1ContainerStatus
-from kubernetes.config.config_exception import ConfigException
+from kubernetes.client.models import V1Container, V1ContainerStatus
 from urllib3.exceptions import HTTPError
 from cwltool.utils import CWLObjectType
 
@@ -20,7 +18,6 @@ from calrissian.job import (
 )
 from calrissian.job import (
     quoted_arg_list,
-    read_yaml,
     random_tag,
     k8s_safe_name,
 )
@@ -215,12 +212,11 @@ class CalrissianCommandLineDaskJob(CalrissianCommandLineJob):
 
     container_shared_dir = '/shared'
     
-    daskGateway_controller_dir = '/controller'
+    dask_gateway_controller_dir = '/controller'
 
-    daskGateway_config_dir = '/etc/dask'
+    dask_gateway_config_dir = '/etc/dask'
 
     def __init__(self, *args, **kwargs):
-        # super(CalrissianCommandLineJob, self).__init__(*args, **kwargs)
         super(CalrissianCommandLineDaskJob, self).__init__(*args, **kwargs)
         self.client = KubernetesDaskClient()
 
@@ -230,8 +226,8 @@ class CalrissianCommandLineDaskJob(CalrissianCommandLineJob):
         tag = random_tag()
         return k8s_safe_name('{}-cm-{}'.format('dask', tag)), k8s_safe_name('{}-cm-{}'.format('dask', tag))
 
-    def wait_for_kubernetes_pod(self, cm_name: str):
-        return self.client.wait_for_completion(cm_name = cm_name)
+    def wait_for_kubernetes_pod(self, cm_name: Optional[str] = None):
+        return self.client.wait_for_completion(cm_name=cm_name)
 
     def get_dask_script_cm_name(self, runtimeContext):
         return runtimeContext.dask_script_configmap
@@ -277,7 +273,7 @@ class CalrissianCommandLineDaskJob(CalrissianCommandLineJob):
                 any_path_okay=any_path_okay)
 
 
-        self.client.create_dask_gateway_cofig_map(
+        self.client.create_dask_gateway_config_map(
             dask_gateway_url=self.get_dask_gateway_url(runtimeContext),
             cm_name=self.dask_cm_name)
 
@@ -290,7 +286,7 @@ class CalrissianCommandLineDaskJob(CalrissianCommandLineJob):
         self._add_configmap_volume_and_binding(
             name=self.dask_cm_name,
             cm_name=self.dask_cm_claim_name,
-            target=self.daskGateway_config_dir)
+            target=self.dask_gateway_config_dir)
 
         dask_gateway_controller_cm_name = self.get_dask_script_cm_name(runtimeContext)
 
@@ -299,7 +295,7 @@ class CalrissianCommandLineDaskJob(CalrissianCommandLineJob):
             self._add_configmap_volume_and_binding(
                 name=dask_gateway_controller_cm_name,
                 cm_name=dask_gateway_controller_cm_name,
-                target=self.daskGateway_controller_dir)
+                target=self.dask_gateway_controller_dir)
         
 
         k8s_builder = KubernetesDaskPodBuilder(
@@ -414,9 +410,9 @@ class KubernetesDaskClient(KubernetesClient):
                     w.stop()
             
             last_status = self.get_last_or_none(pod.status.container_statuses)
-            if last_status == None or not self.state_is_terminated(last_status.state):
+            if last_status is None or not self.state_is_terminated(last_status.state):
                 statuses = self.get_list_or_none(pod.status.container_statuses)
-                if statuses == None:
+                if statuses is None:
                     continue
                 for status in statuses:
                     log.info('pod name {} with id {} has status {}'.format(pod.metadata.name, pod.metadata.uid, status))
@@ -468,7 +464,7 @@ class KubernetesDaskClient(KubernetesClient):
             return container_list[-1]
         
     @retry_exponential_if_exception_type((ApiException, HTTPError,), log)
-    def create_dask_gateway_cofig_map(self, dask_gateway_url: str, cm_name: str):
+    def create_dask_gateway_config_map(self, dask_gateway_url: str, cm_name: str):
         gateway = {'gateway': {'address': dask_gateway_url}}
 
         configmap = client.V1ConfigMap(
