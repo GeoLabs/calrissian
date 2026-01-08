@@ -376,7 +376,7 @@ class KubernetesPodBuilder(object):
 
         return {str(k): str(v) for k, v in self.labels.items()}
 
-    def check_pod_nodeselectors(self):
+    def select_pod_nodeselectors(self):
         """
             Return the appropriate Kubernetes node selectors for the pod.
 
@@ -394,7 +394,8 @@ class KubernetesPodBuilder(object):
         return (
             _tostring(self.gpu_nodeselectors)
             if any(
-                req['class'] in ['cwltool:CUDARequirement', 'http://commonwl.org/cwltool#CUDARequirement']
+                'class' in req
+                and req['class'] in ['cwltool:CUDARequirement', 'http://commonwl.org/cwltool#CUDARequirement']
                 for req in self.requirements
             )
             else _tostring(self.nodeselectors)
@@ -432,7 +433,7 @@ class KubernetesPodBuilder(object):
                 'restartPolicy': 'Never',
                 'volumes': self.volumes,
                 'securityContext': self.security_context,
-                'nodeSelector': self.check_pod_nodeselectors()
+                'nodeSelector': self.select_pod_nodeselectors()
             }
         }
         

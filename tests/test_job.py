@@ -453,17 +453,17 @@ class KubernetesPodBuilderTestCase(TestCase):
         
     def test_string_nodeselectors(self):
         self.pod_builder.nodeselectors = {'cachelevel': 2}
-        self.assertEqual(self.pod_builder.check_pod_nodeselectors(), {'cachelevel':'2'})
+        self.assertEqual(self.pod_builder.select_pod_nodeselectors(), {'cachelevel':'2'})
 
     def test_not_gpu_req_nodeselectors(self):
         self.pod_builder.gpu_nodeselectors = {'gpu': "true"}
-        self.assertEqual(self.pod_builder.check_pod_nodeselectors(), {'disktype': 'ssd', 'cachelevel': '2'})
+        self.assertEqual(self.pod_builder.select_pod_nodeselectors(), {'disktype': 'ssd', 'cachelevel': '2'})
     
     def test_gpu_nodeselectors(self):
         self.pod_builder.requirements = [OrderedDict([("class", "cwltool:CUDARequirement"), ("cudaVersionMin", '10.0'), ("cudaComputeCapability", '3.0'), ("cudaDeviceCountMin", 2), ("cudaDeviceCountMax", 4)])]
 
         self.pod_builder.gpu_nodeselectors = {'gpu': "true", 'example.com/gpu.present': "true"}
-        self.assertEqual(self.pod_builder.check_pod_nodeselectors(), {'gpu': "true", 'example.com/gpu.present': "true"})
+        self.assertEqual(self.pod_builder.select_pod_nodeselectors(), {'gpu': "true", 'example.com/gpu.present': "true"})
 
     def test_string_no_network_access_pod_label(self):
         self.pod_builder.no_network_access_pod_labels = {"calrissian-network": "disabled"}
