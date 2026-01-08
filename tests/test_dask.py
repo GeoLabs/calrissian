@@ -19,8 +19,7 @@ from calrissian.dask import (
     dask_req_validate,
 )
 from calrissian.k8s import (
-    CalrissianJobException,
-    CompletionResult
+    CompletionResult,
 )
 from kubernetes.client.models import V1Pod
 from kubernetes.client.rest import ApiException
