@@ -126,3 +126,129 @@ class RetryTestCase(TestCase):
         result = wrapped()
         self.assertEqual(result, "ok")
         self.assertEqual(self.mock.call_count, 3)
+
+
+    @patch("calrissian.retry.RetryParameters")
+    def test_retry_when_exception_has_no_status_attribute(self, mock_retry_parameters):
+        """Edge case: exception has no 'status' attribute"""
+        self.setup_mock_retry_parameters(mock_retry_parameters)
+        class NoStatusException(Exception):
+            pass
+
+        self.mock.side_effect = NoStatusException("no_status")
+
+        @retry_exponential_if_exception_type(NoStatusException, self.logger)
+        def wrapped():
+            return self.mock()
+
+        with self.assertRaisesRegex(NoStatusException, "no_status"):
+            wrapped()
+
+        self.assertEqual(self.mock.call_count, mock_retry_parameters.ATTEMPTS)
+
+
+    @patch("calrissian.retry.RetryParameters")
+    def test_retry_when_exception_status_is_non_numeric_string(self, mock_retry_parameters):
+        """Edge case: status is present but not parseable (ValueError in int())"""
+        self.setup_mock_retry_parameters(mock_retry_parameters)
+
+        class WeirdStatusException(Exception):
+            def __init__(self, status, reason="weird"):
+                super().__init__(reason)
+                self.status = status
+
+        self.mock.side_effect = WeirdStatusException("four hundred")
+
+        @retry_exponential_if_exception_type(WeirdStatusException, self.logger)
+        def wrapped():
+            return self.mock()
+
+        with self.assertRaisesRegex(WeirdStatusException, "weird"):
+            wrapped()
+
+        self.assertEqual(self.mock.call_count, mock_retry_parameters.ATTEMPTS)
+
+
+    @patch("calrissian.retry.RetryParameters")
+    def test_retry_when_exception_status_is_none(self, mock_retry_parameters):
+        """Edge case: status is None (TypeError in int())"""
+        self.setup_mock_retry_parameters(mock_retry_parameters)
+        class NoneStatusException(Exception):
+            def __init__(self, reason="none_status"):
+                super().__init__(reason)
+                self.status = None
+
+        self.mock.side_effect = NoneStatusException("none_status")
+
+        @retry_exponential_if_exception_type(NoneStatusException, self.logger)
+        def wrapped():
+            return self.mock()
+
+        with self.assertRaisesRegex(NoneStatusException, "none_status"):
+            wrapped()
+
+        self.assertEqual(self.mock.call_count, mock_retry_parameters.ATTEMPTS)
+
+
+    @patch("calrissian.retry.RetryParameters")
+    def test_retry_boundary_399_retries_then_give_up(self, mock_retry_parameters):
+        """Boundary: 399 is NOT 4xx -> should retry."""
+        self.setup_mock_retry_parameters(mock_retry_parameters)
+        self.mock.side_effect = FakeApiException(399, "HTTP 399")
+
+        @retry_exponential_if_exception_type(FakeApiException, self.logger)
+        def wrapped():
+            return self.mock()
+
+        with self.assertRaisesRegex(FakeApiException, "HTTP 399"):
+            wrapped()
+
+        self.assertEqual(self.mock.call_count, mock_retry_parameters.ATTEMPTS)
+
+
+    @patch("calrissian.retry.RetryParameters")
+    def test_retry_boundary_400_no_retry(self, mock_retry_parameters):
+        """Boundary: 400 IS 4xx -> should NOT retry."""
+        self.setup_mock_retry_parameters(mock_retry_parameters)
+        self.mock.side_effect = FakeApiException(400, "Bad Request")
+
+        @retry_exponential_if_exception_type(FakeApiException, self.logger)
+        def wrapped():
+            return self.mock()
+
+        with self.assertRaisesRegex(FakeApiException, "Bad Request"):
+            wrapped()
+
+        self.assertEqual(self.mock.call_count, 1)
+
+
+    @patch("calrissian.retry.RetryParameters")
+    def test_retry_boundary_499_no_retry(self, mock_retry_parameters):
+        """Boundary: 499 IS 4xx -> should NOT retry."""
+        self.setup_mock_retry_parameters(mock_retry_parameters)
+        self.mock.side_effect = FakeApiException(499, "HTTP 499")
+
+        @retry_exponential_if_exception_type(FakeApiException, self.logger)
+        def wrapped():
+            return self.mock()
+
+        with self.assertRaisesRegex(FakeApiException, "HTTP 499"):
+            wrapped()
+
+        self.assertEqual(self.mock.call_count, 1)
+
+
+    @patch("calrissian.retry.RetryParameters")
+    def test_retry_boundary_500_retries_then_give_up(self, mock_retry_parameters):
+        """Boundary: 500 is NOT 4xx -> should retry."""
+        self.setup_mock_retry_parameters(mock_retry_parameters)
+        self.mock.side_effect = FakeApiException(500, "Internal Error")
+
+        @retry_exponential_if_exception_type(FakeApiException, self.logger)
+        def wrapped():
+            return self.mock()
+
+        with self.assertRaisesRegex(FakeApiException, "Internal Error"):
+            wrapped()
+
+        self.assertEqual(self.mock.call_count, mock_retry_parameters.ATTEMPTS)
