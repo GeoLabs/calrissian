@@ -22,7 +22,6 @@ from calrissian.k8s import (
     CompletionResult,
 )
 from kubernetes.client.models import V1Pod
-from kubernetes.client.rest import ApiException
 
 
 class ValidateExtensionTestCase(TestCase):
