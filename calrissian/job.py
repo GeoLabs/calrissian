@@ -601,7 +601,7 @@ class CalrissianCommandLineJob(ContainerCommandLineJob):
                 'runAsGroup': os.getgid()
             })
 
-        sc["readOnlyRootFilesystem"] = True if not runtimeContext.no_read_only else False
+        sc["readOnlyRootFilesystem"] = not runtimeContext.no_read_only
         sc["privileged"] = False
         sc["allowPrivilegeEscalation"] = False
         return sc
