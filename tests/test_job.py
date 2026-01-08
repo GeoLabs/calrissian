@@ -914,7 +914,6 @@ class CalrissianCommandLineJobTestCase(TestCase):
         security_context = job.get_security_context(mock_runtime_context)
         self.assertEqual(security_context, {'readOnlyRootFilesystem': True, 'privileged': False, 'allowPrivilegeEscalation': False})
 
-
     def test_get_security_context_no_read_only(self, mock_volume_builder, mock_client):
         mock_runtime_context = Mock(no_match_user=True, no_read_only=True)
         job = self.make_job()
