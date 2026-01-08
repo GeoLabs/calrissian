@@ -41,7 +41,7 @@ class TimedReport(object):
         if elapsed_seconds:
             return elapsed_seconds / SECONDS_PER_HOUR
         else:
-            return None
+            return 0
 
     def to_dict(self):
         # Create a dict of our variables, filtering out None
@@ -127,14 +127,14 @@ class TimedResourceReport(TimedReport):
         if elapsed_hours:
             return self.ram_megabytes * elapsed_hours
         else:
-            return None
+            return 0
 
     def cpu_hours(self):
         elapsed_hours = self.elapsed_hours()
         if elapsed_hours:
             return self.cpus * elapsed_hours
         else:
-            return None
+            return 0
 
     def to_dict(self):
         result = super(TimedResourceReport, self).to_dict()
