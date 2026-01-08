@@ -375,23 +375,19 @@ class KubernetesPodBuilder(object):
             self.labels = {**self.labels, **self.network_access_pod_labels}
 
         return {str(k): str(v) for k, v in self.labels.items()}
-    
-    # def pod_nodeselectors(self):
-    #     """
-    #     Submitted node selectors must be strings
-    #     :return:
-    #     """
-    #     return {str(k): str(v) for k, v in self.nodeselectors.items()}
-    
-    # def pod_gpu_nodeselectors(self):
-    #     """
-    #     Submitted node selectors must be strings
-    #     :return:
-    #     """
-    #     return {str(k): str(v) for k, v in self.gpu_nodeselectors.items()}
 
     def check_pod_nodeselectors(self):
-        
+        """
+            Return the appropriate Kubernetes node selectors for the pod.
+
+            If the job requirements include a CUDA requirement
+            (either 'cwltool:CUDARequirement' or
+            'http://commonwl.org/cwltool#CUDARequirement'),
+            GPU-specific node selectors are used. Otherwise, the
+            default node selectors are returned.
+
+            :return: A dict of node selector labels (str -> str)
+            """
         def _tostring(nodeselectors):
             return {str(k): str(v) for k, v in nodeselectors.items()}
 
