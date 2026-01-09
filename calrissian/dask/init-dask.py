@@ -98,7 +98,18 @@ logger.info(f"Resource requirements: {worker_cores} cores, {worker_memory}")
 # DaskGateway.Requirement.ResourceRequirement.max_cores and
 # DaskGateway.Requirement.ResourceRequirement.max_ram, respectively.
 
-workers = int(min(int(max_cores) // int(worker_cores_limit), parse_memory(max_ram) // parse_memory(worker_memory)))
+worker_cores_limit = int(worker_cores_limit)
+worker_mem = parse_memory(worker_memory)
+
+if worker_cores_limit <= 0:
+    raise ValueError("workerCoresLimit must be > 0")
+if worker_mem <= 0:
+    raise ValueError("workerMemory must be > 0")
+
+workers = min(
+    int(max_cores) // worker_cores_limit,
+    parse_memory(max_ram) // worker_mem,
+)
 
 logger.info(f"Scaling cluster to {workers} workers")
 cluster.scale(workers)
