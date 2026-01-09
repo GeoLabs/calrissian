@@ -215,7 +215,7 @@ class KubernetesVolumeBuilder(object):
 
 class KubernetesPodBuilder(object):
 
-    def __init__(self, name, builder, container_image, environment, volume_mounts, volumes, command_line, stdout, stderr, stdin, labels, nodeselectors, security_context, serviceaccount, pod_additional_spec=None, no_network_access_pod_labels=None, network_access_pod_labels=None):
+    def __init__(self, name, builder, container_image, environment, volume_mounts, volumes, command_line, stdout, stderr, stdin, labels, nodeselectors, gpu_nodeselectors, security_context, serviceaccount, pod_additional_spec=None, no_network_access_pod_labels=None, network_access_pod_labels=None):
         self.name = name
         self.builder = builder
         self.cwl_version = self.builder.cwlVersion
@@ -230,6 +230,7 @@ class KubernetesPodBuilder(object):
         self.resources = self.builder.resources
         self.labels = labels
         self.nodeselectors = nodeselectors
+        self.gpu_nodeselectors = gpu_nodeselectors
         self.security_context = security_context
         self.serviceaccount = serviceaccount
         self.no_network_access_pod_labels = no_network_access_pod_labels
@@ -391,13 +392,31 @@ class KubernetesPodBuilder(object):
             self.labels = {**self.labels, **self.network_access_pod_labels}
 
         return {str(k): str(v) for k, v in self.labels.items()}
-    
-    def pod_nodeselectors(self):
+
+    def select_pod_nodeselectors(self):
         """
-        Submitted node selectors must be strings
-        :return:
-        """
-        return {str(k): str(v) for k, v in self.nodeselectors.items()}
+            Return the appropriate Kubernetes node selectors for the pod.
+
+            If the job requirements include a CUDA requirement
+            (either 'cwltool:CUDARequirement' or
+            'http://commonwl.org/cwltool#CUDARequirement'),
+            GPU-specific node selectors are used. Otherwise, the
+            default node selectors are returned.
+
+            :return: A dict of node selector labels (str -> str)
+            """
+        def _tostring(nodeselectors):
+            return {str(k): str(v) for k, v in nodeselectors.items()}
+
+        return (
+            _tostring(self.gpu_nodeselectors)
+            if any(
+                'class' in req
+                and req['class'] in ['cwltool:CUDARequirement', 'http://commonwl.org/cwltool#CUDARequirement']
+                for req in self.requirements
+            )
+            else _tostring(self.nodeselectors)
+        )
 
     def pod_envfromsecret(self):
         return [{'secretRef': {'name': secret}} for secret in self.env_from_secret]
@@ -431,7 +450,7 @@ class KubernetesPodBuilder(object):
                 'restartPolicy': 'Never',
                 'volumes': self.volumes,
                 'securityContext': self.security_context,
-                'nodeSelector': self.pod_nodeselectors()
+                'nodeSelector': self.select_pod_nodeselectors()
             }
         }
         
@@ -604,19 +623,30 @@ class CalrissianCommandLineJob(ContainerCommandLineJob):
             return read_yaml(runtimeContext.pod_nodeselectors)
         else:
             return {}
+    
+    def get_pod_gpu_nodeselectors(self, runtimeContext):
+        if runtimeContext.pod_gpu_nodeselectors:
+            return read_yaml(runtimeContext.pod_gpu_nodeselectors)
+        else:
+            return {}
 
     def get_pod_serviceaccount(self, runtimeContext):
         return runtimeContext.pod_serviceaccount
 
 
     def get_security_context(self, runtimeContext):
+        sc = {}
+
         if not runtimeContext.no_match_user:
-            return {
+            sc.update({
                 'runAsUser': os.getuid(),
                 'runAsGroup': os.getgid()
-            }
-        else:
-            return {}
+            })
+
+        sc["readOnlyRootFilesystem"] = not runtimeContext.no_read_only
+        sc["privileged"] = False
+        sc["allowPrivilegeEscalation"] = False
+        return sc
 
     def get_pod_env_vars(self, runtimeContext):
         if runtimeContext.pod_env_vars:
@@ -693,6 +723,7 @@ class CalrissianCommandLineJob(ContainerCommandLineJob):
             self.stdin,
             self.get_pod_labels(runtimeContext),
             self.get_pod_nodeselectors(runtimeContext),
+            self.get_pod_gpu_nodeselectors(runtimeContext),
             self.get_security_context(runtimeContext),
             self.get_pod_serviceaccount(runtimeContext),
             self.get_pod_additional_spec(runtimeContext),

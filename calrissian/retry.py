@@ -1,4 +1,4 @@
-from tenacity import retry, wait_exponential, retry_if_exception_type, stop_after_attempt, before_sleep_log
+from tenacity import retry, wait_exponential, retry_if_exception, retry_if_exception_type, stop_after_attempt, before_sleep_log
 import logging
 import os
 
@@ -10,6 +10,14 @@ class RetryParameters(object):
     ATTEMPTS = int(os.getenv('RETRY_ATTEMPTS', 10)) # Max number of retries before giving up
 
 
+def _is_4xx(exc) -> bool:
+    status = getattr(exc, "status", None)
+    try:
+        return 400 <= int(status) < 500
+    except (TypeError, ValueError):
+        return False
+
+
 def retry_exponential_if_exception_type(exc_type, logger):
     """
     Decorator function that returns the tenacity @retry decorator with our commonly-used config
@@ -17,7 +25,10 @@ def retry_exponential_if_exception_type(exc_type, logger):
     :param logger: A logger instance to send retry logs to
     :return: Result of tenacity.retry decorator function
     """
-    return retry(retry=retry_if_exception_type(exc_type),
+    retry_on_type = retry_if_exception_type(exc_type)
+    retry_not_4xx = retry_if_exception(lambda e: not _is_4xx(e))
+
+    return retry(retry=retry_on_type & retry_not_4xx,
             wait=wait_exponential(multiplier=RetryParameters.MULTIPLIER, min=RetryParameters.MIN, max=RetryParameters.MAX),
             stop=stop_after_attempt(RetryParameters.ATTEMPTS),
             before_sleep=before_sleep_log(logger, logging.DEBUG),

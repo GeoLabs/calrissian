@@ -49,6 +49,11 @@ class TimedReportTestCase(TestCase):
         self.report.start_time = TIME_1000
         self.report.finish_time = TIME_1100
         self.assertEqual(1.0, self.report.elapsed_hours())
+    
+    def test_start_time_equal_finish_time(self):
+        self.report.start_time = TIME_1000
+        self.report.finish_time = TIME_1000
+        self.assertEqual(0.0, self.report.elapsed_hours())
 
     def test_elapsed_is_none_if_not_started(self):
         self.assertIsNone(self.report.start_time)
@@ -99,7 +104,7 @@ class TimedResourceReportTestCase(TestCase):
 
     def test_create(self):
         name = 'test-job'
-        completion_result = CompletionResult(0, '4', '3G', TIME_1000, TIME_1100, [])
+        completion_result = CompletionResult(0, '4', '3G', TIME_1000, TIME_1100, [], {})
         disk_bytes = 10000000
         report = TimedResourceReport.create(name, completion_result, disk_bytes)
         self.assertEqual(report.cpu_hours(), 4)
