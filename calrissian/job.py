@@ -195,7 +195,7 @@ class KubernetesVolumeBuilder(object):
         self.volume_mounts.append(volume_mount)
 
     def add_emptydir_volume_binding(self, name, target):
-        if not name in self.emptydir_volume_names:
+        if name not in self.emptydir_volume_names:
             # fail if the name is not registered
             raise VolumeBuilderException('Could not find an emptyDir volume named {}'.format(name))
         volume_mount = {
@@ -205,7 +205,7 @@ class KubernetesVolumeBuilder(object):
         self.volume_mounts.append(volume_mount)
 
     def add_configmap_volume_binding(self, name, target):
-        if not name in self.configmap_volume_names:
+        if name not in self.configmap_volume_names:
             raise VolumeBuilderException('Could not find a configMap volume named {}'.format(name))
         volume_mount = {
             'name': name,
