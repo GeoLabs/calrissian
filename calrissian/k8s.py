@@ -320,7 +320,3 @@ class PodMonitor(object):
                     log.error('Error deleting pod named {}, ignoring'.format(pod_name))
             PodMonitor.pod_names = []
         log.info('Finishing Cleanup')
-
-
-def delete_pods():
-    PodMonitor.cleanup()
