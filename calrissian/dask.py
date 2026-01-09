@@ -179,12 +179,26 @@ class KubernetesDaskPodBuilder(KubernetesPodBuilder):
                 'restartPolicy': 'Never',
                 'volumes': self.volumes,
                 'securityContext': self.security_context,
-                'nodeSelector': self.pod_nodeselectors()
+                'nodeSelector': self.select_pod_nodeselectors()
             }
         }
         
         if ( self.serviceaccount ):
             spec['spec']['serviceAccountName'] = self.serviceaccount
+        
+        if ( self.priority_class ):
+            spec['spec']['priorityClassName'] = self.priority_class
+
+        if self.env_from_secret or self.env_from_configmap:
+            envfrom = []
+
+            if self.env_from_secret:
+                envfrom.extend(self.pod_envfromsecret())
+
+            if self.env_from_configmap:
+                envfrom.extend(self.pod_envfromconfigmap())
+
+            spec['spec']['containers'][0]["envFrom"] = envfrom
 
         return spec
     
@@ -294,6 +308,7 @@ class CalrissianCommandLineDaskJob(CalrissianCommandLineJob):
             self.stdin,
             self.get_pod_labels(runtimeContext),
             self.get_pod_nodeselectors(runtimeContext),
+            self.get_pod_gpu_nodeselectors(runtimeContext),
             self.get_security_context(runtimeContext),
             self.get_pod_serviceaccount(runtimeContext),
             self.get_pod_additional_spec(runtimeContext),
@@ -422,7 +437,8 @@ class KubernetesDaskClient(KubernetesClient):
             elif self.state_is_terminated(last_status.state):
                 log.info('Handling terminated pod name {} with id {}'.format(pod.metadata.name, pod.metadata.uid))
                 container = self.get_last_or_none(pod.spec.containers)
-                self._handle_completion(last_status.state, container)
+                node_selectors = self._get_pod_node_selector()
+                self._handle_completion(last_status.state, container, node_selectors)
                 if self.should_delete_pod():
                     with DaskPodMonitor() as monitor:
                         self.delete_pod_name(pod.metadata.name)

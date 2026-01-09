@@ -57,6 +57,7 @@ class KubernetesDaskPodBuilderTestCase(TestCase):
         self.stdin = 'stdin.txt'
         self.labels = {'key1': 'val1', 'key2': 123}
         self.nodeselectors = {'disktype': 'ssd', 'cachelevel': 2}
+        self.gpu_nodeselectors = {}
         self.security_context = { 'runAsUser': os.getuid(),'runAsGroup': os.getgid() }
         self.pod_serviceaccount = "podmanager"
         self.dask_gateway_url = "http://dask-gateway-url:80"
@@ -70,7 +71,7 @@ class KubernetesDaskPodBuilderTestCase(TestCase):
         self.pod_additional_spec = {}
         self.pod_builder = KubernetesDaskPodBuilder(self.dask_gateway_url, self.dask_gateway_controller, self.name, self.builder, self.container_image,
                                                     self.environment, self.volume_mounts, self.volumes, self.command_line, self.stdout, self.stderr,
-                                                    self.stdin, self.labels, self.nodeselectors, self.security_context, self.pod_serviceaccount,
+                                                    self.stdin, self.labels, self.nodeselectors, self.gpu_nodeselectors, self.security_context, self.pod_serviceaccount,
                                                     self.pod_additional_spec, self.no_network_access_pod_labels, self.network_access_pod_labels )
         self.pod_builder.dask_requirement = {
             "workerCores": 2,
@@ -428,6 +429,7 @@ class CalrissianCommandLineDaskJobTestCase(TestCase):
             job.stdout,
             job.stderr,
             job.stdin,
+            mock_read_yaml.return_value,
             mock_read_yaml.return_value,
             mock_read_yaml.return_value,
             job.get_security_context(mock_runtime_context),
