@@ -35,7 +35,7 @@ class ValidateExtensionTestCase(TestCase):
             "class": "https://calrissian-cwl.github.io/schema#DaskGatewayRequirement" # From cwl
         }
     
-    def tests_validate_extension(self):
+    def test_validate_extension(self):
         self.assertTrue(dask_req_validate(self.daskGatewayRequirement))
 
 
@@ -378,13 +378,11 @@ class CalrissianCommandLineDaskJobTestCase(TestCase):
     def test_dask_configmap_name(self, mock_volume_builder, mock_client):
         job = self.make_job()
         self.assertRegex(job.dask_cm_name, r'^dask-cm-[a-zA-Z0-9]{8}$')
-        self.assertRegex(job.dask_cm_claim_name, r'^dask-cm-[a-zA-Z0-9]{8}$')
-
     
     def test_add_configmap_volume_and_binding(self, mock_volume_builder, mock_client):
         job = self.make_job()
         job._add_configmap_volume_and_binding(
-            job.dask_cm_name, job.dask_cm_claim_name, job.dask_gateway_config_dir
+            job.dask_cm_name, job.dask_cm_name, job.dask_gateway_config_dir
         )
         self.assertTrue(mock_volume_builder.return_value.add_configmap_volume.called)
         self.assertTrue(mock_volume_builder.return_value.add_configmap_volume_binding.called)

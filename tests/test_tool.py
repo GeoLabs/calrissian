@@ -3,6 +3,7 @@ from unittest.mock import Mock, patch, call
 from calrissian.dask import CalrissianCommandLineDaskJob
 from calrissian.tool import CalrissianCommandLineTool, calrissian_make_tool, CalrissianCommandLineToolException
 from calrissian.context import CalrissianLoadingContext
+from calrissian.main import add_custom_schema
 
 
 class CalrissianMakeToolTestCase(TestCase):
@@ -70,9 +71,9 @@ class CalrissianCommandLineToolTestCase(TestCase):
 
 
     def test_uses_dask_requirement(self):
-
+        add_custom_schema()
         # Set up the tool with a Dask requirement
-        self.toolpath_object['https://calrissian-cwl.github.io/schema#DaskGatewayRequirement'] = [
+        self.toolpath_object['requirements'] = [
             {
                 "workerCores": 2,
                 "workerCoresLimit": 2,
@@ -85,8 +86,29 @@ class CalrissianCommandLineToolTestCase(TestCase):
 
         tool = CalrissianCommandLineTool(self.toolpath_object, self.loadingContext)
         runtimeContext = Mock(use_container=True)
-        runtimeContext.find_default_container.return_value = 'docker:default-container'
+        runtimeContext.find_default_container.return_value = 'docker:tool-container'
 
         runner = tool.make_job_runner(runtimeContext)
 
-        self.assertTrue(runner, CalrissianCommandLineDaskJob)
+        self.assertEqual(runner, CalrissianCommandLineDaskJob)
+    
+    def test_uses_dask_hints(self):
+        # Set up the tool with a Dask requirement
+        self.toolpath_object['hints'] = [
+            {
+                "workerCores": 2,
+                "workerCoresLimit": 2,
+                "workerMemory": "4G",
+                "clusterMaxCores": 8,
+                "clusterMaxMemory": "16G",
+                "class": "https://calrissian-cwl.github.io/schema#DaskGatewayRequirement"  # From cwl
+            }
+        ]
+
+        tool = CalrissianCommandLineTool(self.toolpath_object, self.loadingContext)
+        runtimeContext = Mock(use_container=True)
+        runtimeContext.find_default_container.return_value = 'docker:tool-container'
+
+        runner = tool.make_job_runner(runtimeContext)
+
+        self.assertEqual(runner, CalrissianCommandLineDaskJob)

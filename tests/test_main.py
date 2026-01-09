@@ -15,7 +15,7 @@ class CalrissianMainTestCase(TestCase):
     @patch('calrissian.main.version')
     @patch('calrissian.main.parse_arguments')
     @patch('calrissian.main.add_arguments')
-    @patch('calrissian.main.delete_pods')
+    @patch('calrissian.main.PodMonitor')
     @patch('calrissian.main.install_signal_handler')
     @patch('calrissian.main.write_report')
     @patch('calrissian.main.initialize_reporter')
@@ -29,7 +29,7 @@ class CalrissianMainTestCase(TestCase):
                                                   mock_flush_tees, mock_install_tees,
                                                   mock_memory_parser, mock_cpu_parser,
                                                   mock_initialize_reporter, mock_write_report,
-                                                  mock_install_signal_handler, mock_delete_pods,
+                                                  mock_install_signal_handler, mock_pod_monitor,
                                                   mock_add_arguments, mock_parse_arguments, mock_version,
                                                   mock_runtime_context, mock_loading_context, mock_executor,
                                                   mock_arg_parser, mock_cwlmain):
@@ -56,7 +56,7 @@ class CalrissianMainTestCase(TestCase):
         self.assertEqual(mock_runtime_context.return_value.select_resources,
                          mock_executor.return_value.select_resources)
         self.assertEqual(result, mock_exit_code)
-        self.assertTrue(mock_delete_pods.called)  # called after main()
+        self.assertTrue(mock_pod_monitor.cleanup.called)  # called after main()
         self.assertTrue(mock_write_report.called)
         self.assertEqual(mock_initialize_reporter.call_args, call(mock_memory_parser.parse_to_megabytes.return_value, mock_cpu_parser.parse.return_value))
         self.assertEqual(mock_install_tees.call_args, call(mock_parse_arguments.return_value.stdout, mock_parse_arguments.return_value.stderr))
@@ -100,13 +100,13 @@ class CalrissianMainTestCase(TestCase):
         self.assertEqual(mock_sys.exit.call_args, call(0))
 
     @patch('calrissian.main.sys')
-    @patch('calrissian.main.delete_pods')
-    def test_handle_sigterm_exits_with_signal(self, mock_delete_pods, mock_sys):
+    @patch('calrissian.main.PodMonitor')
+    def test_handle_sigterm_exits_with_signal(self, mock_pod_monitor, mock_sys):
         frame = Mock()
         signum = 15
         handle_sigterm(signum, frame)
         self.assertEqual(mock_sys.exit.call_args, call(signum))
-        self.assertTrue(mock_delete_pods.called)
+        self.assertTrue(mock_pod_monitor.cleanup.called)
 
     @patch('calrissian.main.signal')
     @patch('calrissian.main.handle_sigterm')

@@ -4,7 +4,7 @@ from kubernetes.client.models import V1Pod, V1ContainerStateTerminated, V1Contai
 from kubernetes.client.rest import ApiException
 from kubernetes.config.config_exception import ConfigException
 from calrissian.executor import IncompleteStatusException
-from calrissian.k8s import load_config_get_namespace, KubernetesClient, CalrissianJobException, PodMonitor, delete_pods
+from calrissian.k8s import load_config_get_namespace, KubernetesClient, CalrissianJobException, PodMonitor
 from calrissian.k8s import CompletionResult, read_file
 
 
@@ -368,7 +368,7 @@ class PodMonitorTestCase(TestCase):
 
     @patch('calrissian.k8s.PodMonitor')
     def test_delete_pods_calls_podmonitor(self, mock_pod_monitor):
-        delete_pods()
+        mock_pod_monitor.cleanup()
         self.assertTrue(mock_pod_monitor.cleanup.called)
 
     @patch('calrissian.k8s.KubernetesClient')
