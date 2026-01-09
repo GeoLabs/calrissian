@@ -1,3 +1,6 @@
+import threading
+import logging
+import os
 from typing import List, Union
 from kubernetes import client, config, watch
 from kubernetes.client.models import V1ContainerState, V1Container, V1ContainerStatus
@@ -5,9 +8,6 @@ from kubernetes.client.rest import ApiException
 from kubernetes.config.config_exception import ConfigException
 from calrissian.executor import IncompleteStatusException
 from calrissian.retry import retry_exponential_if_exception_type
-import threading
-import logging
-import os
 from urllib3.exceptions import HTTPError
 from datetime import datetime
 
@@ -158,7 +158,7 @@ class KubernetesClient(object):
         
         log.info('[{}] follow_logs end'.format(pod_name))
 
-
+        
     @retry_exponential_if_exception_type((ApiException, HTTPError, IncompleteStatusException), log)
     def wait_for_completion(self) -> CompletionResult:
         w = watch.Watch()
@@ -275,7 +275,7 @@ class KubernetesClient(object):
         """
         pod_name = os.environ.get(POD_NAME_ENV_VARIABLE)
         if not pod_name:
-            raise CalrissianJobException("Missing required environment variable ${}".format(POD_NAME_ENV_VARIABLE))
+            raise CalrissianJobException("Missing required environment variable {}".format(POD_NAME_ENV_VARIABLE))
         return self.get_pod_for_name(pod_name)
 
 
@@ -326,7 +326,3 @@ class PodMonitor(object):
                     log.error('Error deleting pod named {}, ignoring'.format(pod_name))
             PodMonitor.pod_names = []
         log.info('Finishing Cleanup')
-
-
-def delete_pods():
-    PodMonitor.cleanup()

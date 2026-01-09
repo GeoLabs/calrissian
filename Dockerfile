@@ -14,7 +14,7 @@ RUN tar -xzf /tmp/hatch-x86_64-unknown-linux-gnu.tar.gz -C /tmp/
 FROM rockylinux:9.3-minimal
 
 # Install runtime dependencies
-RUN microdnf install -y --nodocs nodejs && \
+RUN microdnf install -y --nodocs nodejs git && \
     microdnf clean all
 
 # Set up a default user and home directory

@@ -15,7 +15,7 @@ class CalrissianMainTestCase(TestCase):
     @patch('calrissian.main.version')
     @patch('calrissian.main.parse_arguments')
     @patch('calrissian.main.add_arguments')
-    @patch('calrissian.main.delete_pods')
+    @patch('calrissian.main.PodMonitor')
     @patch('calrissian.main.install_signal_handler')
     @patch('calrissian.main.write_report')
     @patch('calrissian.main.initialize_reporter')
@@ -29,12 +29,13 @@ class CalrissianMainTestCase(TestCase):
                                                   mock_flush_tees, mock_install_tees,
                                                   mock_memory_parser, mock_cpu_parser,
                                                   mock_initialize_reporter, mock_write_report,
-                                                  mock_install_signal_handler, mock_delete_pods,
+                                                  mock_install_signal_handler, mock_pod_monitor,
                                                   mock_add_arguments, mock_parse_arguments, mock_version,
                                                   mock_runtime_context, mock_loading_context, mock_executor,
-                                                  mock_arg_parser, mock_cwlmain,):
+                                                  mock_arg_parser, mock_cwlmain):
         mock_exit_code = Mock()
         mock_cwlmain.return_value = mock_exit_code  # not called before main
+        mock_parse_arguments.return_value.dask_gateway_url = None  # No custom schema callback
         result = main()
         self.assertTrue(mock_arg_parser.called)
         self.assertEqual(mock_add_arguments.call_args, call(mock_arg_parser.return_value))
@@ -50,11 +51,12 @@ class CalrissianMainTestCase(TestCase):
                                                       executor=mock_executor.return_value,
                                                       loadingContext=mock_loading_context.return_value,
                                                       runtimeContext=mock_runtime_context.return_value,
-                                                      versionfunc=mock_version))
+                                                      versionfunc=mock_version,
+                                                      custom_schema_callback=None))
         self.assertEqual(mock_runtime_context.return_value.select_resources,
                          mock_executor.return_value.select_resources)
         self.assertEqual(result, mock_exit_code)
-        self.assertTrue(mock_delete_pods.called)  # called after main()
+        self.assertTrue(mock_pod_monitor.cleanup.called)  # called after main()
         self.assertTrue(mock_write_report.called)
         self.assertEqual(mock_initialize_reporter.call_args, call(mock_memory_parser.parse_to_megabytes.return_value, mock_cpu_parser.parse.return_value))
         self.assertEqual(mock_install_tees.call_args, call(mock_parse_arguments.return_value.stdout, mock_parse_arguments.return_value.stderr))
@@ -63,7 +65,7 @@ class CalrissianMainTestCase(TestCase):
     def test_add_arguments(self):
         mock_parser = Mock()
         add_arguments(mock_parser)
-        self.assertEqual(mock_parser.add_argument.call_count, 18)
+        self.assertEqual(mock_parser.add_argument.call_count, 20)
 
     @patch('calrissian.main.sys')
     def test_parse_arguments_exits_without_ram_or_cores(self, mock_sys):
@@ -98,13 +100,13 @@ class CalrissianMainTestCase(TestCase):
         self.assertEqual(mock_sys.exit.call_args, call(0))
 
     @patch('calrissian.main.sys')
-    @patch('calrissian.main.delete_pods')
-    def test_handle_sigterm_exits_with_signal(self, mock_delete_pods, mock_sys):
+    @patch('calrissian.main.PodMonitor')
+    def test_handle_sigterm_exits_with_signal(self, mock_pod_monitor, mock_sys):
         frame = Mock()
         signum = 15
         handle_sigterm(signum, frame)
         self.assertEqual(mock_sys.exit.call_args, call(signum))
-        self.assertTrue(mock_delete_pods.called)
+        self.assertTrue(mock_pod_monitor.cleanup.called)
 
     @patch('calrissian.main.signal')
     @patch('calrissian.main.handle_sigterm')
@@ -156,12 +158,12 @@ class CalrissianMainTestCase(TestCase):
     def test_activate_logging(self, mock_logging):
         mock_level = Mock()
         activate_logging(mock_level)
-        self.assertEqual(mock_logging.getLogger.call_count, 12) #
-        #  setLevel should be called 6 times
-        self.assertEqual([call(mock_level)] * 6, mock_logging.getLogger.return_value.setLevel.mock_calls)
-        # addHandler should be called 6 times
+        self.assertEqual(mock_logging.getLogger.call_count, 14) #
+        #  setLevel should be called 7 times
+        self.assertEqual([call(mock_level)] * 7, mock_logging.getLogger.return_value.setLevel.mock_calls)
+        # addHandler should be called 7 times
         mock_streamhandler = mock_logging.StreamHandler.return_value
-        self.assertEqual([call(mock_streamhandler)] * 6, mock_logging.getLogger.return_value.addHandler.mock_calls)
+        self.assertEqual([call(mock_streamhandler)] * 7, mock_logging.getLogger.return_value.addHandler.mock_calls)
 
     def test_get_log_level(self):
         args_quiet = Mock(quiet=True, verbose=False, debug=False)
