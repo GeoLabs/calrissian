@@ -6,7 +6,7 @@ from cwltool.process import use_custom_schema, get_schema
 from calrissian.executor import ThreadPoolJobExecutor
 from calrissian.context import CalrissianLoadingContext, CalrissianRuntimeContext
 from calrissian.version import version
-from calrissian.k8s import delete_pods
+from calrissian.k8s import PodMonitor
 from calrissian.report import initialize_reporter, write_report, CPUParser, MemoryParser
 from calrissian.dask import DaskPodMonitor
 from cwltool.main import main as cwlmain
@@ -95,7 +95,7 @@ def parse_arguments(parser):
 
 def handle_sigterm(signum, frame):
     log.error('Received signal {}, deleting pods'.format(signum))
-    delete_pods()
+    PodMonitor.cleanup()
     sys.exit(signum)
 
 
@@ -182,7 +182,7 @@ def main():
         if parsed_args.dask_gateway_url:
             DaskPodMonitor.cleanup()
         else:
-            delete_pods()
+            PodMonitor.cleanup()
         if parsed_args.usage_report:
             write_report(parsed_args.usage_report)
         flush_tees()
