@@ -36,25 +36,6 @@ log = logging.getLogger("calrissian.dask")
 log_main = logging.getLogger("calrissian.main")
 
 
-def merge_dicts(target, source):
-    """
-    Recursively merges source dict into target dict.
-    - If a key is missing in target, it is added.
-    - If a key exists in both, and its value is a dict, recurse into it.
-    - Otherwise, overwrite the value in target with the one from source.
-    """
-    for key, value in source.items():
-        if key in target:
-            if isinstance(target[key], dict) and isinstance(value, dict):
-                merge_dicts(target[key], value)
-            else:
-                target[key] = value
-        else:
-            target[key] = value
-
-    return target
-
-
 def dask_req_validate(requirement: Optional[CWLObjectType]) -> bool:
     """
     Check if CWL ext DaskGatewayRequirements has all the required keys
@@ -71,7 +52,7 @@ def dask_req_validate(requirement: Optional[CWLObjectType]) -> bool:
                      "clusterMaxMemory", 
                      "class"]
     
-    return set(requirement.keys()) == set(required_keys)
+    return set(required_keys).issubset(requirement.keys())
 
 
 class KubernetesDaskPodBuilder(KubernetesPodBuilder):
@@ -220,11 +201,11 @@ class CalrissianCommandLineDaskJob(CalrissianCommandLineJob):
         super(CalrissianCommandLineDaskJob, self).__init__(*args, **kwargs)
         self.client = KubernetesDaskClient()
 
-        self.dask_cm_name, self.dask_cm_claim_name = self.dask_configmap_name()
+        self.dask_cm_name = self.dask_configmap_name()
 
     def dask_configmap_name(self):
         tag = random_tag()
-        return k8s_safe_name('{}-cm-{}'.format('dask', tag)), k8s_safe_name('{}-cm-{}'.format('dask', tag))
+        return k8s_safe_name('{}-cm-{}'.format('dask', tag))
 
     def wait_for_kubernetes_pod(self, cm_name: Optional[str] = None):
         return self.client.wait_for_completion(cm_name=cm_name)
@@ -237,7 +218,7 @@ class CalrissianCommandLineDaskJob(CalrissianCommandLineJob):
 
     def _add_configmap_volume_and_binding(self, name, cm_name, target):
         self.volume_builder.add_configmap_volume(name, cm_name)
-        self.volume_builder.add_configmap_volume_binding(cm_name, target)
+        self.volume_builder.add_configmap_volume_binding(name, target)
 
     def create_kubernetes_runtime(self, runtimeContext):
         # In cwltool, the runtime list starts as something like ['docker','run'] and these various builder methods
@@ -285,7 +266,7 @@ class CalrissianCommandLineDaskJob(CalrissianCommandLineJob):
         # as explained here: https://gateway.dask.org/configuration-user.html
         self._add_configmap_volume_and_binding(
             name=self.dask_cm_name,
-            cm_name=self.dask_cm_claim_name,
+            cm_name=self.dask_cm_name,
             target=self.dask_gateway_config_dir)
 
         dask_gateway_controller_cm_name = self.get_dask_script_cm_name(runtimeContext)
@@ -327,6 +308,9 @@ class CalrissianCommandLineDaskJob(CalrissianCommandLineJob):
             log.error('Runtime list is not empty. k8s does not use that, so you should see who put something there:\n{}'.format(' '.join(runtime)))
         return built
     
+    def execute_kubernetes_pod(self, pod):
+        self.client.submit_pod(pod)
+
     def run(self, runtimeContext, tmpdir_lock=None):
         def get_pod_command(pod):
             return pod['spec']['containers'][0]['args']
@@ -458,14 +442,14 @@ class KubernetesDaskClient(KubernetesClient):
         return self.completion_result
     
     @staticmethod
-    def get_list_or_none(container_list: List[Union[V1ContainerStatus, V1Container]]) -> Union[V1ContainerStatus, V1Container]:
+    def get_list_or_none(container_list: Optional[List[Union[V1ContainerStatus, V1Container]]]) -> Optional[Union[V1ContainerStatus, V1Container]]:
         if not container_list: # None or empty list
             return None
         else:
             return list(container_list)
 
     @staticmethod
-    def get_last_or_none(container_list: List[Union[V1ContainerStatus, V1Container]]) -> Union[V1ContainerStatus, V1Container]:
+    def get_last_or_none(container_list: Optional[List[Union[V1ContainerStatus, V1Container]]]) -> Optional[Union[V1ContainerStatus, V1Container]]:
         if not container_list: # None or empty list
             return None
         else:
