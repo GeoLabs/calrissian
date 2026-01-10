@@ -7,7 +7,7 @@ on:
       - main
 
 permissions:
-  id-token: write # IMPORTANT: this permission is mandatory for trusted publishing
+  id-token: write # allow OIDC tokens for authentication and artifact attestations
   contents: read
   packages: write
   attestations: write
