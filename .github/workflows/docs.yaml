@@ -3,6 +3,7 @@ on:
   push:
     branches:
     - master
+    - main
     paths:
     # Only rebuild website when docs have changed
     - 'README.md'
