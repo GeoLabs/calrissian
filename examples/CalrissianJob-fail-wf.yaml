@@ -7,7 +7,8 @@ spec:
     spec:
       containers:
       - name: calrissian
-        image: dukegcb/calrissian:latest
+        image: ghcr.io/duke-gcb/calrissian/calrissian:latest
+        imagePullPolicy: Always
         securityContext:
           runAsUser: 1000
           runAsGroup: 1000

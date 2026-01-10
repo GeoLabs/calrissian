@@ -1,5 +1,15 @@
 name: docs
 on:
+  push:
+    branches:
+    - master
+    - main
+    paths:
+    # Only rebuild website when docs have changed
+    - 'README.md'
+    - 'docs/**'
+    - 'mkdocs.yml'
+    - '.github/workflows/docs.yaml'
   release:
     types: [created]
 
