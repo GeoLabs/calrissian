@@ -4,7 +4,7 @@ from kubernetes.client.models import V1Pod, V1ContainerStateTerminated, V1Contai
 from kubernetes.client.rest import ApiException
 from kubernetes.config.config_exception import ConfigException
 from calrissian.executor import IncompleteStatusException
-from calrissian.k8s import load_config_get_namespace, KubernetesClient, CalrissianJobException, PodMonitor, delete_pods
+from calrissian.k8s import load_config_get_namespace, KubernetesClient, CalrissianJobException, PodMonitor
 from calrissian.k8s import CompletionResult, read_file
 
 
@@ -224,7 +224,7 @@ class KubernetesClientTestCase(TestCase):
     def test_get_current_pod_missing_env_var(self, mock_os, mock_get_namespace, mock_client):
         mock_os.environ = {}
         kc = KubernetesClient()
-        with self.assertRaisesRegex(CalrissianJobException, 'Missing required environment variable \$CALRISSIAN_POD_NAME'):
+        with self.assertRaisesRegex(CalrissianJobException, 'Missing required environment variable CALRISSIAN_POD_NAME'):
             kc.get_current_pod()
 
     @patch('calrissian.k8s.os')
@@ -368,7 +368,7 @@ class PodMonitorTestCase(TestCase):
 
     @patch('calrissian.k8s.PodMonitor')
     def test_delete_pods_calls_podmonitor(self, mock_pod_monitor):
-        delete_pods()
+        mock_pod_monitor.cleanup()
         self.assertTrue(mock_pod_monitor.cleanup.called)
 
     @patch('calrissian.k8s.KubernetesClient')
@@ -400,12 +400,14 @@ class CompletionResultTestCase(TestCase):
         self.start_time = Mock()
         self.finish_time = Mock()
         self.tool_log = Mock()
+        self.node_selectors = Mock()
 
     def test_init(self):
-        result = CompletionResult(self.exit_code, self.cpus, self.memory, self.start_time, self.finish_time, self.tool_log)
+        result = CompletionResult(self.exit_code, self.cpus, self.memory, self.start_time, self.finish_time, self.tool_log, self.node_selectors)
         self.assertEqual(result.exit_code, self.exit_code)
         self.assertEqual(result.cpus, self.cpus)
         self.assertEqual(result.memory, self.memory)
         self.assertEqual(result.start_time, self.start_time)
         self.assertEqual(result.finish_time, self.finish_time)
         self.assertEqual(result.tool_log, self.tool_log)
+        self.assertEqual(result.node_selectors, self.node_selectors)
