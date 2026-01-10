@@ -273,7 +273,12 @@ class KubernetesVolumeBuilderTestCase(TestCase):
 class KubernetesPodBuilderTestCase(TestCase):
 
     def setUp(self):
+        builder = Mock()
+        builder.cwlVersion = "v1.2"
+        builder.requirements = []
+        builder.resources = {'cores': 1, 'ram': 1024}
         self.name = 'PodName'
+        self.builder = builder
         self.container_image = 'dockerimage:1.0'
         self.environment = {'K1':'V1', 'K2':'V2', 'HOME': '/homedir'}
         self.volume_mounts = [Mock(), Mock()]
@@ -282,14 +287,19 @@ class KubernetesPodBuilderTestCase(TestCase):
         self.stdout = 'stdout.txt'
         self.stderr = 'stderr.txt'
         self.stdin = 'stdin.txt'
-        self.resources = {'cores': 1, 'ram': 1024}
         self.labels = {'key1': 'val1', 'key2': 123}
+        self.gpu_nodeselectors = {}
         self.nodeselectors = {'disktype': 'ssd', 'cachelevel': 2}
         self.security_context = { 'runAsUser': os.getuid(),'runAsGroup': os.getgid() }
         self.pod_serviceaccount = "podmanager"
-        self.pod_builder = KubernetesPodBuilder(self.name, self.container_image, self.environment, self.volume_mounts,
+        self.no_network_access_pod_labels = {"calrissian-network": "disabled"}
+        self.network_access_pod_labels = {"calrissian-network": "enabled"}
+        self.pod_additional_spec = {'pod_priority_class': 'standard-priority'}
+        self.pod_builder = KubernetesPodBuilder(self.name, self.builder, self.container_image, self.environment, self.volume_mounts,
                                                 self.volumes, self.command_line, self.stdout, self.stderr, self.stdin,
-                                                self.resources, self.labels, self.nodeselectors, self.security_context, self.pod_serviceaccount)
+                                                self.labels, self.nodeselectors, self.gpu_nodeselectors, self.security_context,
+                                                self.pod_serviceaccount, self.pod_additional_spec, 
+                                                self.no_network_access_pod_labels, self.network_access_pod_labels)
 
     @patch('calrissian.job.random_tag')
     def test_safe_pod_name(self, mock_random_tag):
@@ -319,6 +329,38 @@ class KubernetesPodBuilderTestCase(TestCase):
         self.assertIn({'name': 'K2', 'value': 'V2'}, environment)
         self.assertIn({'name': 'HOME', 'value': '/homedir'}, environment)
 
+    def test_container_env_from_secret_single(self):
+        self.pod_builder.env_from_secret = ['calrissian-example-1']
+        env_from_secret = self.pod_builder.pod_envfromsecret()
+
+        self.assertEqual(len(self.pod_builder.env_from_secret), len(env_from_secret))
+        self.assertIn('calrissian-example-1', self.pod_builder.env_from_secret)
+
+    def test_container_env_from_secret_multiple(self):
+        self.pod_builder.env_from_secret = ['calrissian-example-1', 'calrissian-example-2', 'calrissian-example-3']
+        env_from_secret = self.pod_builder.pod_envfromsecret()
+
+        self.assertEqual(len(self.pod_builder.env_from_secret), len(env_from_secret))
+        self.assertIn('calrissian-example-1', self.pod_builder.env_from_secret)
+        self.assertIn('calrissian-example-2', self.pod_builder.env_from_secret)
+        self.assertIn('calrissian-example-3', self.pod_builder.env_from_secret)
+
+    def test_container_env_from_configmap_single(self):
+        self.pod_builder.env_from_configmap = ['calrissian-config-1']
+        env_from_configmap = self.pod_builder.pod_envfromconfigmap()
+
+        self.assertEqual(len(self.pod_builder.env_from_configmap), len(env_from_configmap))
+        self.assertIn('calrissian-config-1', self.pod_builder.env_from_configmap)
+
+    def test_container_env_from_configmap_multiple(self):
+        self.pod_builder.env_from_configmap = ['calrissian-config-1', 'calrissian-config-2', 'calrissian-config-3']
+        env_from_configmap = self.pod_builder.pod_envfromconfigmap()
+
+        self.assertEqual(len(self.pod_builder.env_from_configmap), len(env_from_configmap))
+        self.assertIn('calrissian-config-1', self.pod_builder.env_from_configmap)
+        self.assertIn('calrissian-config-2', self.pod_builder.env_from_configmap)
+        self.assertIn('calrissian-config-3', self.pod_builder.env_from_configmap)
+
     def test_container_workingdir(self):
         workingdir = self.pod_builder.container_workingdir()
         self.assertEqual('/homedir', workingdir)
@@ -343,7 +385,22 @@ class KubernetesPodBuilderTestCase(TestCase):
             }
         }
         self.assertEqual(expected, resources)
-        
+    
+    def test_container_resources_requests_limits(self):
+        self.pod_builder.resources = {'cores': 2, 'ram': 256, 'ramMax': 4096, 'coresMax': 4}
+        resources = self.pod_builder.container_resources()
+        expected = {
+            'requests': {
+                'cpu': '2',
+                'memory': '256Mi'
+            },
+            'limits': {
+                'cpu': '4',
+                'memory': '4096Mi'
+            }
+        }
+        self.assertEqual(expected, resources)
+
     def test_gpu_hints(self):
         self.pod_builder.resources = {'cores': 2, 'ram': 256 }
         self.pod_builder.requirements = [OrderedDict([("class", "cwltool:CUDARequirement"), ("cudaVersionMin", '10.0'), ("cudaComputeCapability", '3.0'), ("cudaDeviceCountMin", 1), ("cudaDeviceCountMax", 1)])]
@@ -375,13 +432,50 @@ class KubernetesPodBuilderTestCase(TestCase):
         }
         self.assertEqual(expected, resources)
 
+    def test_network_access_1_2(self):
+        self.pod_builder.cwl_version = "v1.2"
+        self.pod_builder.requirements = [OrderedDict([("class", "NetworkAccess"), ("networkAccess", "true")])]
+        self.assertEqual(self.pod_builder.pod_labels(), {"calrissian-network": "enabled", 'key1':'val1', 'key2':'123'})
+
+    def test_no_network_access_1_2(self):
+        self.pod_builder.cwl_version = "v1.2"
+        self.pod_builder.requirements = [OrderedDict([("class", "NetworkAccess"), ("networkAccess", "false")])]
+        self.assertEqual(self.pod_builder.pod_labels(), {"calrissian-network": "disabled", 'key1':'val1', 'key2':'123'})
+
+    def test_network_access_1_0(self):
+        self.pod_builder.cwl_version = "v1.0"
+        self.pod_builder.requirements = [OrderedDict([])]
+        self.assertEqual(self.pod_builder.pod_labels(), {"calrissian-network": "enabled", 'key1':'val1', 'key2':'123'})
+
     def test_string_labels(self):
         self.pod_builder.labels = {'key1': 123}
-        self.assertEqual(self.pod_builder.pod_labels(), {'key1':'123'})
+        self.assertEqual(self.pod_builder.pod_labels(), {"calrissian-network": "disabled", 'key1':'123'})
         
     def test_string_nodeselectors(self):
         self.pod_builder.nodeselectors = {'cachelevel': 2}
-        self.assertEqual(self.pod_builder.pod_nodeselectors(), {'cachelevel':'2'})
+        self.assertEqual(self.pod_builder.select_pod_nodeselectors(), {'cachelevel':'2'})
+
+    def test_not_gpu_req_nodeselectors(self):
+        self.pod_builder.gpu_nodeselectors = {'gpu': "true"}
+        self.assertEqual(self.pod_builder.select_pod_nodeselectors(), {'disktype': 'ssd', 'cachelevel': '2'})
+    
+    def test_gpu_nodeselectors(self):
+        self.pod_builder.requirements = [OrderedDict([("class", "cwltool:CUDARequirement"), ("cudaVersionMin", '10.0'), ("cudaComputeCapability", '3.0'), ("cudaDeviceCountMin", 2), ("cudaDeviceCountMax", 4)])]
+
+        self.pod_builder.gpu_nodeselectors = {'gpu': "true", 'example.com/gpu.present': "true"}
+        self.assertEqual(self.pod_builder.select_pod_nodeselectors(), {'gpu': "true", 'example.com/gpu.present': "true"})
+
+    def test_string_no_network_access_pod_label(self):
+        self.pod_builder.no_network_access_pod_labels = {"calrissian-network": "disabled"}
+        self.assertEqual(self.pod_builder.pod_labels(), {"calrissian-network": "disabled", 'key1': 'val1', 'key2': '123'})
+
+    def test_string_network_access_pod_label(self):
+        self.pod_builder.network_access_pod_labels = {"calrissian-network": "enabled"}
+        self.assertEqual(self.pod_builder.pod_labels(), {"calrissian-network": "disabled", 'key1': 'val1', 'key2': '123'})
+
+    def test_string_priority_class(self):
+        self.assertIsNotNone(self.pod_builder.priority_class)
+        self.assertEqual(self.pod_builder.priority_class, "standard-priority")
 
     def test_init_containers_empty_when_no_stdout_or_stderr(self):
         self.pod_builder.stdout = None
@@ -428,6 +522,7 @@ class KubernetesPodBuilderTestCase(TestCase):
                 'labels': {
                     'key1': 'val1',
                     'key2': '123',
+                    'calrissian-network': 'disabled',
                 }
             },
             'apiVersion': 'v1',
@@ -465,6 +560,7 @@ class KubernetesPodBuilderTestCase(TestCase):
                     'runAsUser': os.getuid(),
                     'runAsGroup': os.getgid()
                 },
+                'priorityClassName': 'standard-priority',
                 'serviceAccountName': 'podmanager'
             }
         }
@@ -495,7 +591,7 @@ class CalrissianCommandLineJobTestCase(TestCase):
 
     def make_completion_result(self, exit_code):
         return create_autospec(CompletionResult, pod_name=self.name, exit_code=exit_code, cpus='1', memory='1', start_time=Mock(),
-                        finish_time=Mock(), pod_log='logs/')
+                        finish_time=Mock(), pod_log='logs/', node_selectors={})
 
     def test_constructor_calculates_persistent_volume_entries(self, mock_volume_builder, mock_client):
         self.make_job()
@@ -657,6 +753,7 @@ class CalrissianCommandLineJobTestCase(TestCase):
         # creates a KubernetesPodBuilder
         self.assertEqual(mock_pod_builder.call_args, call(
             job.name,
+            job.builder,
             job._get_container_image(),
             job.environment,
             job.volume_builder.volume_mounts,
@@ -665,13 +762,14 @@ class CalrissianCommandLineJobTestCase(TestCase):
             job.stdout,
             job.stderr,
             job.stdin,
-            job.builder.resources,
+            mock_read_yaml.return_value,
             mock_read_yaml.return_value,
             mock_read_yaml.return_value,
             job.get_security_context(mock_runtime_context),
-            None, 
-            job.builder.requirements,
-            job.builder.hints,
+            None,
+            job.get_pod_additional_spec(mock_runtime_context),
+            mock_read_yaml.return_value,
+            mock_read_yaml.return_value,
         ))
         # calls builder.build
         # returns that
@@ -810,17 +908,29 @@ class CalrissianCommandLineJobTestCase(TestCase):
         self.assertEqual(expected_calls, manager.mock_calls)
 
     def test_get_security_context(self, mock_volume_builder, mock_client):
-        mock_runtime_context = Mock(no_match_user=False)
-        expected_security_context = { 'runAsUser': os.getuid(), 'runAsGroup': os.getgid() }
+        mock_runtime_context = Mock(no_match_user=False, no_read_only=False)
+        expected_security_context = {
+            'readOnlyRootFilesystem': True,
+            'privileged': False,
+            'allowPrivilegeEscalation': False,
+            'runAsUser': os.getuid(),
+            'runAsGroup': os.getgid()
+        }
         job = self.make_job()
         security_context = job.get_security_context(mock_runtime_context)
         self.assertEqual(security_context, expected_security_context)
     
-    def test_get_security_context_empty(self, mock_volume_builder, mock_client):
-        mock_runtime_context = Mock(no_match_user=True)
+    def test_get_security_context_no_match_user(self, mock_volume_builder, mock_client):
+        mock_runtime_context = Mock(no_match_user=True, no_read_only=False)
         job = self.make_job()
         security_context = job.get_security_context(mock_runtime_context)
-        self.assertEqual(security_context, {})
+        self.assertEqual(security_context, {'readOnlyRootFilesystem': True, 'privileged': False, 'allowPrivilegeEscalation': False})
+
+    def test_get_security_context_no_read_only(self, mock_volume_builder, mock_client):
+        mock_runtime_context = Mock(no_match_user=True, no_read_only=True)
+        job = self.make_job()
+        security_context = job.get_security_context(mock_runtime_context)
+        self.assertEqual(security_context, {'readOnlyRootFilesystem': False, 'privileged': False, 'allowPrivilegeEscalation': False})
 
     @patch('calrissian.job.read_yaml')
     def test_get_pod_labels(self, mock_read_yaml, mock_volume_builder, mock_client):
