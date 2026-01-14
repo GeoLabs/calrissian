@@ -598,6 +598,12 @@ class KubernetesDaskClientTestCase(TestCase):
                                                         mock_podmonitor, mock_watch, mock_get_namespace,
                                                         mock_client):
         mock_pod = create_autospec(V1Pod)
+        mock_pod.status = Mock()
+        mock_pod.status.init_container_statuses = None
+        mock_pod.status.container_statuses = [Mock()]
+
+        mock_pod.spec = Mock()
+        mock_pod.spec.containers = [self.make_mock_container("main-container")]
         mock_pod.status.container_statuses[0].state = Mock(running=None, waiting=None, terminated=Mock(exit_code=123))
         mock_cpu_memory.return_value = ('1', '1Mi')
         self.setup_mock_watch(mock_watch, [mock_pod])
