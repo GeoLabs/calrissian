@@ -437,6 +437,8 @@ class KubernetesDaskClient(KubernetesClient):
             elif self.state_is_terminated(last_status.state):
                 log.info('Handling terminated pod name {} with id {}'.format(pod.metadata.name, pod.metadata.uid))
                 container = self.get_container_by_name(pod.spec.containers, 'main-container')
+                if container is None:
+                    raise CalrissianJobException("Container 'main-container' not found in pod spec", pod)
                 node_selectors = self._get_pod_node_selector()
                 self._handle_completion(last_status.state, container, node_selectors)
                 if self.should_delete_pod():
