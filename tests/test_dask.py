@@ -478,7 +478,7 @@ class KubernetesDaskClientTestCase(TestCase):
         self.assertIsNone(kc.pod)
         self.assertIsNone(kc.completion_result)
 
-    
+
     @patch('calrissian.dask.DaskPodMonitor')
     def test_submit_pod(self, mock_podmonitor, mock_get_namespace, mock_client):
         mock_get_namespace.return_value = 'namespace'
@@ -515,8 +515,6 @@ class KubernetesDaskClientTestCase(TestCase):
         type(obj).name = PropertyMock(return_value=name)
         return obj
 
-
-
     def make_mock_container(self, name="main-container"):
         # Make something that behaves like a k8s container for _extract_cpu_memory_requests
         # It expects container.resources.requests to exist.
@@ -550,9 +548,9 @@ class KubernetesDaskClientTestCase(TestCase):
         self.assertEqual(mock_stream.call_args, call(kc.core_api_instance.list_namespaced_pod, kc.namespace,
                                                      field_selector='metadata.name=test123'))
 
-    
+
     @patch('calrissian.dask.watch', autospec=True)
-    def test_wait_calls_watch_pod_with_imcomplete_status(self, mock_watch, mock_get_namespace, mock_client):
+    def test_wait_calls_watch_pod_with_incomplete_status(self, mock_watch, mock_get_namespace, mock_client):
         self.setup_mock_watch(mock_watch)
         mock_pod = self.make_mock_pod('test123')
         kc = KubernetesDaskClient()
